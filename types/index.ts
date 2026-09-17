@@ -1,0 +1,14 @@
+export type Lang='en'|'ar';
+export type Theme='soc'|'terminal'|'futuristic'|'clean'|'light';
+export type Intensity='calm'|'normal'|'strict'|'brutal';
+export type JokeFrequency='never'|'low'|'normal'|'high';
+export type Briefing='full'|'compact'|'minimal';
+export type ScheduleKind='satr'|'topic'|'break'|'review'|'pre'|'competition';
+export interface ChecklistItem{id:string;en:string;ar:string}
+export interface Resource{title:string;description?:string;url:string;type:'official'|'platform'|'book'|'video'}
+export interface Topic{ id:string; title:string; arTitle:string; why:string; arWhy:string; theory:ChecklistItem[]; practical:ChecklistItem[]; mistakes:string[]; tools:string[]; resources:Resource[]; questions:Question[] }
+export interface Question{ id:string; type:'mcq'|'tf'|'scenario'|'identify'|'reasoning'; question:string; arQuestion:string; options?:string[]; arOptions?:string[]; answer:number; explanation:string; arExplanation:string; difficulty:'easy'|'medium'|'hard'; tag:string }
+export interface DailyEntry{date:string;kind:ScheduleKind;topicId?:string;topicDay?:1|2}
+export interface DayProgress{studyMs:number;theory:string[];practical:string[];assessmentSubmitted?:boolean;answers?:number[];score?:number;mistakes?:string[];completed?:boolean;missed?:boolean}
+export interface CoachHistory{date:string;main:string;joke:string;mode:string}
+export interface AppState{version:number;lang:Lang;theme:Theme;intensity:Intensity;jokeFrequency:JokeFrequency;briefing:Briefing;sound:boolean;notifications:boolean;daily:Record<string,DayProgress>;breakStartedAt:string|null;breaksUsed:number;streak:number;longestStreak:number;lastCompletedDate:string|null;coachHistory:CoachHistory[];timer:{running:boolean;sessionStartedAt:number|null;accumulatedMs:number;lastSyncedAt:number|null};}
