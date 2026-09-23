@@ -1,505 +1,55 @@
 'use client';
-
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {useEffect,useRef,useState} from 'react';
 import topics from '../data/topics';
-import { schedule } from '../data/schedule';
-import { AppState, DayProgress, Theme, Intensity, JokeFrequency, Briefing, DailyEntry } from '../types';
-import { tx, ui } from '../lib/i18n';
-import { coach } from '../lib/coach';
+import {schedule} from '../data/schedule';
+import {AppState,DailyEntry,DayProgress,Lang,Theme} from '../types';
 
-const DAY = 86400000;
-const HOUR = 3600000;
-const MIN = 60000;
+const H=3600000;
+const initial:AppState={version:4,name:'',hours:7,level:'beginner',goal:'foundation',studyStyle:'balanced',lang:'en',theme:'redgreen',intensity:'normal',jokeFrequency:'normal',briefing:'full',sound:false,notifications:false,daily:{},breakStartedAt:null,breaksUsed:0,streak:0,longestStreak:0,lastCompletedDate:null,coachHistory:[],timer:{running:false,sessionStartedAt:null,accumulatedMs:0,lastSyncedAt:null,date:null}};
+const str=(ms:number)=>{const n=Math.max(0,Math.floor(ms/1000));return [Math.floor(n/3600),Math.floor(n%3600/60),n%60].map(x=>String(x).padStart(2,'0')).join(':')};
+const words={en:{dashboard:'Dashboard',calendar:'Calendar',settings:'Settings',welcome:'Welcome',hello:'Good morning',mood:'How are you feeling today?',mission:'Today’s mission',target:'Daily target',studied:'Studied',remaining:'Remaining',day:'Day',theory:'Theory',practical:'Practical',videos:'Video searches',resources:'Practical resources',discord:'Review the resources shared in your Discord server',start:'Start study',pause:'Pause',save:'Stop and save',progress:'Progress',name:'Your name',language:'Language',hours:'Daily study hours',mode:'Display mode',level:'Current level',goal:'Main goal',style:'Study style',saveProfile:'Save and enter',edit:'Edit profile',noTime:'The timer stops at your daily target.',satr:'Satr platform · day',intro:'Set up your study plan',next:'Next',back:'Back',export:'Export progress',import:'Import progress',reset:'Reset progress',today:'Today',done:'Completed',upcoming:'Upcoming',review:'Discord resource review',study:'Study',linksNote:'Video links open a topic-specific search. Choose a suitable lesson; individual videos have not been curated.',completed:'Mark complete',open:'Open day',preferences:'Preferences',course:'Focus',beginner:'Beginner',intermediate:'Intermediate',advanced:'Advanced',foundation:'Build fundamentals',practice:'Hands-on practice',competition:'Competition preparation',balanced:'Balanced',visual:'Video first',hands:'Practice first'},ar:{dashboard:'الرئيسية',calendar:'التقويم',settings:'الإعدادات',welcome:'أهلًا',hello:'صباح الخير',mood:'كيف وضعك اليوم؟',mission:'مهمة اليوم',target:'هدف المذاكرة اليومي',studied:'وقت المذاكرة',remaining:'المتبقي',day:'اليوم',theory:'النظري',practical:'العملي',videos:'البحث عن المقاطع',resources:'مصادر التطبيق العملي',discord:'راجع المصادر المنشورة في سيرفر الديسكورد الخاص بك',start:'ابدأ المذاكرة',pause:'إيقاف مؤقت',save:'إيقاف وحفظ',progress:'الإنجاز',name:'اسمك',language:'اللغة',hours:'ساعات المذاكرة اليومية',mode:'وضع العرض',level:'مستواك الحالي',goal:'هدفك الأساسي',style:'أسلوبك المفضل',saveProfile:'احفظ وابدأ',edit:'تعديل الملف',noTime:'يتوقف العداد عند اكتمال هدفك اليومي.',satr:'منصة سطر · اليوم',intro:'جهز خطتك الدراسية',next:'التالي',back:'السابق',export:'تصدير التقدم',import:'استيراد التقدم',reset:'مسح التقدم',today:'اليوم',done:'مكتمل',upcoming:'قادم',review:'مراجعة مصادر الديسكورد',study:'مذاكرة',linksNote:'روابط المقاطع تفتح بحثًا مخصصًا للموضوع؛ اختر الدرس المناسب. لم تُنتقَ مقاطع فردية مسبقًا.',completed:'تحديد مكتمل',open:'افتح اليوم',preferences:'تفضيلاتك',course:'المحور',beginner:'مبتدئ',intermediate:'متوسط',advanced:'متقدم',foundation:'بناء الأساسيات',practice:'تطبيق عملي',competition:'الاستعداد للمسابقة',balanced:'متوازن',visual:'مقاطع أولًا',hands:'تطبيق أولًا'}};
+const jokes={ar:['إذا الواي فاي اختفى، لا تتهم الهكر… تأكد أنك دافع الفاتورة أولًا 😭','اليوم بنذاكر لدرجة الـFirewall يقول: خلاص ادخلي ارتاحي 😂','قالوا لي خليك إيجابية، رحت فحصت كل النتائج وطلعت false positive 🤡','إذا شفت كلمة root لا تتحمس، مو معناها صرت مدير الكون 😎','أنا والمذاكرة مثل الـVPN: الاتصال موجود بس السرعة محل نقاش 🫠','سألت الـDNS عن مستقبلي، قال: العنوان غير موجود 😭','المؤقت ما يعض… بس يفضح التسويف بكل أدب ⏱️','الهاكر الحقيقي اليوم هو المنبه اللي اخترق نومك 😴','اللاب يقول جرّب، والكمبيوتر يقول لا تلمسني 😂','أقوى حماية من التسويف: اقفل تبويب المقاطع القطاوة 🐈'],en:['If the Wi-Fi disappears, check the bill before blaming hackers 😭','Study so hard the firewall asks you to take a break 😂','I tried to stay positive and got a false positive 🤡','Seeing root does not make you ruler of the universe 😎','My study focus is like a VPN: connected, but the speed is debatable 🫠','I asked DNS about my future. It said address not found 😭','The timer does not bite, but it politely exposes procrastination ⏱️','Today’s real hacker is the alarm that breached your sleep 😴','The lab says experiment. The laptop says please do not 😂','Best defense against procrastination: close the cat video tab 🐈']};
+const practicalLinks=[{title:'Microsoft Learn',url:'https://learn.microsoft.com/en-us/training/'},{title:'Cisco Networking Academy',url:'https://www.netacad.com/'},{title:'TryHackMe',url:'https://tryhackme.com/'},{title:'OverTheWire',url:'https://overthewire.org/wargames/'},{title:'PortSwigger Web Security Academy',url:'https://portswigger.net/web-security'}];
+function resources(t:typeof topics[number]){const seen=new Set<string>();return [...t.resources.map(r=>({title:r.title,url:r.url})),...practicalLinks].filter(r=>{if(seen.has(r.url))return false;seen.add(r.url);return true}).slice(0,5)}
+function searches(t:typeof topics[number]){return ['introduction','fundamentals','explained','tutorial','hands on lab'].map((part,i)=>({title:`${i+1}. ${t.title} · ${part}`,url:`https://www.youtube.com/results?search_query=${encodeURIComponent(t.title+' cybersecurity '+part)}`}))}
+function entryLabel(e:DailyEntry,lang:Lang){if(e.kind==='satr')return lang==='ar'?'منصة سطر':'Satr platform';const t=topics.find(x=>x.id===e.topicId);return t?(lang==='ar'?t.arTitle:t.title):''}
+function migrateDaily(data:AppState):Record<string,DayProgress>{
+ const migrated:Record<string,DayProgress>={};
+ if(data.version>=4){Object.assign(migrated,data.daily)}else{
+  Object.entries(data.daily as Record<string,DayProgress>).forEach(([key,value])=>{const match=/^day-(\d+)$/.exec(key);if(match&&Number(match[1])<=50)migrated[`day-${Number(match[1])+3}`]=value});
+  for(let i=0;i<50;i++){const legacy=new Date(Date.UTC(2026,8,23+i)).toISOString().slice(0,10);const key=`day-${i+4}`;if(!migrated[key]&&data.daily[legacy])migrated[key]=data.daily[legacy]}
+ }
 
-const initial: AppState = {
-  version: 1,
-  lang: 'en',
-  theme: 'soc',
-  intensity: 'normal',
-  jokeFrequency: 'normal',
-  briefing: 'full',
-  sound: true,
-  notifications: false,
-  daily: {},
-  breakStartedAt: null,
-  breaksUsed: 0,
-  streak: 0,
-  longestStreak: 0,
-  lastCompletedDate: null,
-  coachHistory: [],
-  timer: { running: false, sessionStartedAt: null, accumulatedMs: 0, lastSyncedAt: null },
-};
-
-function fmt(ms: number) {
-  ms = Math.max(0, Math.floor(ms / 1000) * 1000);
-  const h = Math.floor(ms / HOUR);
-  const m = Math.floor((ms % HOUR) / MIN);
-  const s = Math.floor((ms % MIN) / 1000);
-  return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':');
+ return migrated;
 }
-
-function today() {
-  return new Date().toLocaleDateString('en-CA');
-}
-
-function getDay(date: string) {
-  return schedule.find((x) => x.date === date) || schedule[schedule.length - 1];
-}
-
-function safeParse(s: string): AppState | null {
-  try {
-    const x = JSON.parse(s);
-    if (!x || x.version !== 1 || typeof x.daily !== 'object' || !x.timer) return null;
-    return { ...initial, ...x, timer: { ...initial.timer, ...x.timer } };
-  } catch {
-    return null;
-  }
-}
-
-function labelForDay(d: DailyEntry, language: 'en' | 'ar') {
-  const t = topics.find((x) => x.id === d.topicId);
-  if (d.kind === 'topic') return t ? (language === 'ar' ? t.arTitle : t.title) : language === 'ar' ? 'موضوع' : 'Topic';
-  const labels = {
-    satr: language === 'ar' ? 'منصة سطر' : 'Satr',
-    break: language === 'ar' ? 'يوم راحة' : 'Break',
-    review: language === 'ar' ? 'مراجعة نهائية' : 'Final Review',
-    pre: language === 'ar' ? 'قبل المسابقة' : 'Pre-Competition',
-    competition: language === 'ar' ? 'يوم المسابقة' : 'Competition',
-  } as const;
-  return labels[d.kind];
-}
-
-function statusForDay(d: DailyEntry, date: string, currentDate: string, p?: DayProgress) {
-  if (d.date === currentDate) return 'today';
-  if (p?.completed) return 'completed';
-  if (p?.missed) return 'missed';
-  if (d.kind === 'break') return 'break';
-  if (d.kind === 'review') return 'review';
-  if (d.kind === 'pre') return 'pre';
-  if (d.kind === 'competition') return 'competition';
-  if (date > currentDate) return 'upcoming';
-  return 'missed';
-}
-
-export default function Home() {
-  const [state, setState] = useState<AppState>(initial);
-  const [ready, setReady] = useState(false);
-  const [page, setPage] = useState<'dashboard' | 'calendar' | 'mistakes' | 'settings' | 'topic'>('dashboard');
-  const [now, setNow] = useState(Date.now());
-  const [answers, setAnswers] = useState<Record<string, number>>({});
-  const [selectedDay, setSelectedDay] = useState<DailyEntry | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const raw = localStorage.getItem('cyber7h-state');
-    if (raw) {
-      const parsed = safeParse(raw);
-      if (parsed) setState(parsed);
-    }
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem('cyber7h-state', JSON.stringify(state));
-    document.documentElement.dir = state.lang === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = state.lang;
-  }, [state, ready]);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedDay(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, []);
-
-  const date = today();
-  const day = getDay(date);
-  const topic = topics.find((t) => t.id === day.topicId);
-  const dp: DayProgress = state.daily[date] || { studyMs: 0, theory: [], practical: [], assessmentSubmitted: false };
-
-  const currentStudy = state.timer.running && state.timer.sessionStartedAt
-    ? state.timer.accumulatedMs + (now - state.timer.sessionStartedAt)
-    : state.timer.accumulatedMs;
-
-  const debt = Object.entries(state.daily)
-    .filter(([d, p]) => d < date && !p.completed && !p.missed)
-    .reduce((a, [, p]) => a + Math.max(0, 7 * HOUR - p.studyMs), 0);
-
-  const required = 7 * HOUR + debt;
-  const remaining = Math.max(0, required - currentStudy);
-  const pct = Math.min(100, (currentStudy / required) * 100);
-  const totalQuestions = topics.reduce((a, t) => a + t.questions.length, 0);
-  const mistakes = Object.values(state.daily).flatMap((p) => p.mistakes || []);
-  const correct = Object.values(state.daily).reduce((a, p) => a + (p.score || 0), 0);
-  const submitted = Object.values(state.daily).reduce((a, p) => a + (p.assessmentSubmitted ? 10 : 0), 0);
-  const accuracy = submitted ? Math.round((correct / submitted) * 100) : 0;
-
-  const weak = Object.entries(
-    topics.map((t) => ({ id: t.id, title: t.title, count: 0 })).reduce((a, x) => {
-      a[x.id] = x;
-      return a;
-    }, {} as Record<string, { id: string; title: string; count: number }>)
-  );
-  mistakes.forEach((m) => {
-    const found = topics.find((t) => m.startsWith(t.id + ':'));
-    if (found) {
-      const entry = weak.find(([id]) => id === found.id);
-      if (entry) entry[1].count++;
-    }
-  });
-  weak.sort((a, b) => b[1].count - a[1].count);
-  const weakNames = weak.filter(([, v]) => v.count > 0).slice(0, 2).map(([, v]) => v.title);
-
-  const daysUntil = Math.max(
-    0,
-    Math.ceil((new Date('2026-11-30T12:00:00').getTime() - new Date(date + 'T12:00:00').getTime()) / DAY)
-  );
-
-  const brief = useMemo(
-    () => coach({
-      date,
-      topic,
-      topicDay: day.topicDay,
-      studyMs: currentStudy,
-      requiredMs: required,
-      debtMs: debt,
-      streak: state.streak,
-      accuracy,
-      weak: weakNames,
-      days: daysUntil,
-      lang: state.lang,
-      intensity: state.intensity,
-      history: state.coachHistory,
-    }),
-    [date, topic, day.topicDay, currentStudy, required, debt, state.streak, accuracy, weakNames.join(','), daysUntil, state.lang, state.intensity, state.coachHistory]
-  );
-
-  const setStateSafe = (fn: (s: AppState) => AppState) => setState((s) => fn(JSON.parse(JSON.stringify(s))));
-
-  function start() {
-    if (state.breakStartedAt) return;
-    const n = Date.now();
-    setStateSafe((s) => ({ ...s, timer: { ...s.timer, running: true, sessionStartedAt: n, lastSyncedAt: n } }));
-  }
-
-  function pause() {
-    if (!state.timer.running || !state.timer.sessionStartedAt) return;
-    const n = Date.now();
-    const acc = state.timer.accumulatedMs + (n - state.timer.sessionStartedAt);
-    setStateSafe((s) => ({ ...s, timer: { running: false, sessionStartedAt: null, accumulatedMs: acc, lastSyncedAt: n } }));
-  }
-
-  function stop() {
-    const n = Date.now();
-    const acc = state.timer.running && state.timer.sessionStartedAt
-      ? state.timer.accumulatedMs + (n - state.timer.sessionStartedAt)
-      : state.timer.accumulatedMs;
-    setStateSafe((s) => ({
-      ...s,
-      daily: { ...s.daily, [date]: { ...dp, studyMs: Math.max(dp.studyMs, acc) } },
-      timer: { running: false, sessionStartedAt: null, accumulatedMs: acc, lastSyncedAt: n },
-    }));
-  }
-
-  useEffect(() => {
-    if (!ready || !state.timer.running || !state.timer.sessionStartedAt) return;
-    if (currentStudy >= required) {
-      setStateSafe((s) => {
-        const old = s.daily[date] || { studyMs: 0, theory: [], practical: [] };
-        const nd = { ...old, studyMs: currentStudy, completed: true };
-        return {
-          ...s,
-          daily: { ...s.daily, [date]: nd },
-          timer: { running: false, sessionStartedAt: null, accumulatedMs: currentStudy, lastSyncedAt: Date.now() },
-          streak: s.streak + 1,
-          longestStreak: Math.max(s.longestStreak, s.streak + 1),
-          lastCompletedDate: date,
-        };
-      });
-    }
-  }, [currentStudy, required, ready]);
-
-  function toggle(kind: 'theory' | 'practical', id: string) {
-    setStateSafe((s) => {
-      const d = s.daily[date] || { studyMs: 0, theory: [], practical: [] };
-      const arr = d[kind].includes(id) ? d[kind].filter((x) => x !== id) : [...d[kind], id];
-      return { ...s, daily: { ...s.daily, [date]: { ...d, [kind]: arr } } };
-    });
-  }
-
-  function submit() {
-    if (!topic) return;
-    const qs = topic.questions;
-    let score = 0;
-    const ms: string[] = [];
-    qs.forEach((q) => {
-      if (answers[q.id] === q.answer) score++;
-      else ms.push(`${topic.id}:${q.id}`);
-    });
-    setStateSafe((s) => ({
-      ...s,
-      daily: {
-        ...s.daily,
-        [date]: {
-          ...(s.daily[date] || { studyMs: currentStudy, theory: [], practical: [] }),
-          studyMs: currentStudy,
-          assessmentSubmitted: true,
-          answers: qs.map((q) => answers[q.id] ?? -1),
-          score,
-          mistakes: ms,
-        },
-      },
-    }));
-  }
-
-  function takeBreak() {
-    if (state.breaksUsed >= 12 || state.breakStartedAt) return;
-    if (!confirm(state.lang === 'ar' ? 'هذا البريك بيستهلك يومًا واحدًا من أصل 12. هل تريد المتابعة؟' : 'This break consumes one of 12 break days. Continue?')) return;
-    pause();
-    setStateSafe((s) => ({ ...s, breaksUsed: s.breaksUsed + 1, breakStartedAt: new Date().toISOString() }));
-  }
-
-  const breakLeft = state.breakStartedAt
-    ? Math.max(0, 24 * HOUR - (now - new Date(state.breakStartedAt).getTime()))
-    : 0;
-
-  useEffect(() => {
-    if (state.breakStartedAt && breakLeft <= 0) setStateSafe((s) => ({ ...s, breakStartedAt: null }));
-  }, [breakLeft, state.breakStartedAt]);
-
-  function exportData() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'cybersecurity-7h-progress.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function importData(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      const p = safeParse(String(r.result));
-      if (!p) {
-        alert('Invalid progress file. Current progress was not changed.');
-        return;
-      }
-      setState(p);
-      alert('Progress imported successfully.');
-    };
-    r.readAsText(f);
-    e.target.value = '';
-  }
-
-  function reset() {
-    if (confirm(state.lang === 'ar' ? 'تأكيد قوي: سيتم مسح كل التقدم محليًا. هل أنت متأكد؟' : 'Strong confirmation: all local progress will be erased. Continue?')) {
-      setState(initial);
-    }
-  }
-
-  const T = ui[state.lang];
-  const nav = [
-    ['dashboard', T.dashboard],
-    ['calendar', T.calendar],
-    ['mistakes', T.mistakes],
-    ['settings', T.settings],
-  ] as const;
-
-  const selectedTopic = selectedDay?.topicId ? topics.find((t) => t.id === selectedDay.topicId) : undefined;
-  const selectedProgress = selectedDay ? state.daily[selectedDay.date] : undefined;
-
-  if (!ready) {
-    return <div className="app"><main className="main"><div className="loading-card">Loading mission control…</div></main></div>;
-  }
-
-  return (
-    <div className={`app theme-${state.theme} ${state.lang === 'ar' ? 'rtl' : ''}`}>
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="brand-mark"><span>7H</span><div><b>CYBERSECURITY</b><small>MISSION CONTROL</small></div></div>
-          <div className="side-status"><i /> LOCAL-FIRST <span>●</span> NOV 30 MISSION</div>
-          <nav className="nav" aria-label="Primary navigation">
-            {nav.map(([id, label]) => (
-              <button key={id} className={page === id ? 'active' : ''} onClick={() => setPage(id)}>
-                <span className="nav-icon">{id === 'dashboard' ? '⌂' : id === 'calendar' ? '▦' : id === 'mistakes' ? '!' : '⚙'}</span>
-                <span>{label}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="side-mission">
-            <div className="eyebrow">COUNTDOWN</div>
-            <strong>{daysUntil}</strong>
-            <span>{state.lang === 'ar' ? 'يوم حتى المهمة' : 'days until mission'}</span>
-          </div>
-          <div className="sidebar-footer">LOCAL STORAGE<br />NO LOGIN · NO EXTERNAL AI</div>
-        </aside>
-
-        <main className="main">
-          <header className="topbar">
-            <div>
-              <div className="breadcrumb">MISSION CONTROL <span>/</span> {labelForDay(day, state.lang)}</div>
-              <div className="date-line">{date} <span>•</span> {state.lang === 'ar' ? 'التوقيت المحلي' : 'LOCAL TIME'}</div>
-            </div>
-            <div className="top-actions">
-              <button className="lang-switch" onClick={() => setStateSafe((s) => ({ ...s, lang: s.lang === 'en' ? 'ar' : 'en' }))}>
-                {state.lang === 'en' ? 'العربية' : 'English'}
-              </button>
-              <button className="profile-chip" onClick={() => setPage('settings')} aria-label="Open settings">◉</button>
-            </div>
-          </header>
-
-          {page === 'dashboard' && (
-            <>
-              <section className="hero mission-hero">
-                <div className="hero-copy">
-                  <div className="eyebrow">DAY {schedule.findIndex((x) => x.date === date) + 1} · {state.breakStartedAt ? 'BREAK MODE' : 'MISSION ACTIVE'}</div>
-                  <h1>{topic ? (state.lang === 'ar' ? topic.arTitle : topic.title) : labelForDay(day, state.lang)}</h1>
-                  <p>{topic
-                    ? tx(state.lang, topic.why, topic.arWhy)
-                    : day.kind === 'satr'
-                      ? tx(state.lang, 'Use your Satr track and spend the day building fundamentals.', 'استخدم مسار سطر وخصص اليوم لبناء الأساسيات.')
-                      : day.kind === 'pre'
-                        ? tx(state.lang, 'Light review. Prepare your setup. Rest. No heavy new learning.', 'مراجعة خفيفة. جهز بيئتك. ارتح. لا يوجد تعلم ثقيل جديد.')
-                        : day.kind === 'competition'
-                          ? tx(state.lang, 'You have done the preparation. Today is execution.', 'تم إنجاز التحضير. اليوم للتنفيذ.')
-                          : tx(state.lang, 'Close weaknesses using mixed questions, practical labs and mistake review.', 'أغلق نقاط الضعف بالأسئلة المختلطة والمختبرات ومراجعة الأخطاء.')}</p>
-                </div>
-                <div className="mission-badge"><span>MISSION</span><b>7H</b><small>DAILY TARGET</small></div>
-              </section>
-
-              <section className="stat-grid">
-                <div className="metric-card"><span>DAILY TARGET</span><strong>{fmt(7 * HOUR)}</strong><small>Required study time</small></div>
-                <div className="metric-card highlight"><span>STUDIED</span><strong>{fmt(currentStudy)}</strong><small>{Math.round(pct)}% of current requirement</small></div>
-                <div className="metric-card"><span>REMAINING</span><strong>{fmt(remaining)}</strong><small>Keep the mission moving</small></div>
-                <div className="metric-card"><span>STUDY DEBT</span><strong>{fmt(debt)}</strong><small>{debt ? 'Carry-over from missed targets' : 'No active debt'}</small></div>
-              </section>
-
-              {!state.breakStartedAt && day.kind !== 'competition' && day.kind !== 'pre' && (
-                <section className="timer-card panel">
-                  <div className="panel-heading"><div><div className="eyebrow">MISSION TIMER</div><h2>{state.timer.running ? 'MISSION IN PROGRESS' : 'READY TO DEPLOY'}</h2></div><span className="live-dot">{state.timer.running ? '● LIVE' : '● STANDBY'}</span></div>
-                  <div className="timer-wrap"><div className="timer">{fmt(remaining)}</div><div className="timer-sub">{state.lang === 'ar' ? 'الوقت المتبقي من الهدف الحالي' : 'TIME REMAINING IN CURRENT TARGET'}</div></div>
-                  <div className="progress large"><i style={{ width: `${pct}%` }} /></div>
-                  <div className="timer-actions">
-                    {!state.timer.running
-                      ? <button className="btn primary big" onClick={start}>{state.timer.accumulatedMs ? '▶ RESUME MISSION' : '▶ START MISSION'}</button>
-                      : <button className="btn big" onClick={pause}>⏸ PAUSE MISSION</button>}
-                    <button className="btn big" onClick={stop}>■ STOP & SAVE</button>
-                    <button className="btn big subtle" onClick={takeBreak}>☕ TAKE BREAK</button>
-                  </div>
-                </section>
-              )}
-
-              {state.breakStartedAt && (
-                <section className="break-card panel">
-                  <div className="eyebrow">24-HOUR BREAK</div>
-                  <h2>RECOVERY WINDOW</h2>
-                  <div className="timer">{fmt(breakLeft)}</div>
-                  <p>{state.lang === 'ar' ? `البريكات المتبقية: ${12 - state.breaksUsed} / 12` : `Breaks remaining: ${12 - state.breaksUsed} / 12`}</p>
-                </section>
-              )}
-
-              <section className="panel briefing-panel">
-                <div className="panel-heading"><div><div className="eyebrow">DAILY BRIEFING</div><h2>{T.briefing}</h2></div><span className="mode-chip">{brief.mode}</span></div>
-                <div className={`brief-grid briefing-${state.briefing}`}>
-                  <div className="brief-block"><span>SITUATION</span><strong>{brief.greeting}</strong><p>{brief.main}</p></div>
-                  {state.briefing !== 'minimal' && <div className="brief-block"><span>MISSION</span><strong>{topic ? `Complete ${topic.title}` : 'Keep review focused'}</strong><p>{topic ? 'Build theory, complete practical work, then submit the assessment.' : 'Use mixed questions, labs and mistake review.'}</p></div>}
-                  {state.briefing !== 'minimal' && <div className="brief-block"><span>THREAT</span><strong>{debt ? `${fmt(debt)} debt` : weakNames.length ? weakNames.join(' · ') : 'Delay'}</strong><p>{debt ? 'Carry-over study debt is active.' : weakNames.length ? 'These areas are currently appearing in your mistakes.' : 'Protect the first study block from distraction.'}</p></div>}
-                  <div className="brief-block next"><span>NEXT ACTION</span><strong>{brief.next}</strong><p>One focused block. Then reassess.</p></div>
-                </div>
-                {state.jokeFrequency !== 'never' && <div className="cyber-joke">⌁ <span>{brief.joke}</span></div>}
-              </section>
-
-              {topic && (
-                <section className="panel topic-progress-panel">
-                  <div className="panel-heading"><div><div className="eyebrow">CURRENT TOPIC · DAY {day.topicDay}/2</div><h2>{state.lang === 'ar' ? topic.arTitle : topic.title}</h2></div><button className="btn" onClick={() => setPage('topic')}>OPEN TOPIC →</button></div>
-                  <p className="muted lead">{tx(state.lang, topic.why, topic.arWhy)}</p>
-                  <div className="check-grid">
-                    <div><div className="check-title">THEORY <span>{dp.theory.length}/{topic.theory.length}</span></div>{topic.theory.map((x) => <label className="check" key={x.id}><input type="checkbox" checked={dp.theory.includes(x.id)} onChange={() => toggle('theory', x.id)} /><span>{state.lang === 'ar' ? x.ar : x.en}</span></label>)}</div>
-                    <div><div className="check-title">PRACTICAL <span>{dp.practical.length}/{topic.practical.length}</span></div>{topic.practical.map((x) => <label className="check" key={x.id}><input type="checkbox" checked={dp.practical.includes(x.id)} onChange={() => toggle('practical', x.id)} /><span>{state.lang === 'ar' ? x.ar : x.en}</span></label>)}</div>
-                  </div>
-                </section>
-              )}
-
-              <section className="stat-grid lower-stats">
-                <div className="metric-card"><span>🔥 CURRENT STREAK</span><strong>{state.streak}</strong><small>Days completed</small></div>
-                <div className="metric-card"><span>LONGEST STREAK</span><strong>{state.longestStreak}</strong><small>Best run</small></div>
-                <div className="metric-card"><span>QUESTIONS</span><strong>{submitted}/{totalQuestions}</strong><small>Submitted assessments</small></div>
-                <div className="metric-card"><span>ACCURACY</span><strong>{accuracy}%</strong><small>Across submitted questions</small></div>
-              </section>
-            </>
-          )}
-
-          {page === 'topic' && topic && (
-            <section>
-              <div className="hero"><div className="eyebrow">TOPIC · DAY {day.topicDay}/2</div><h1>{state.lang === 'ar' ? topic.arTitle : topic.title}</h1><p>{tx(state.lang, topic.why, topic.arWhy)}</p></div>
-              <div className="panel topic-detail"><div className="detail-grid"><div><h2>THEORY</h2>{topic.theory.map((x) => <label className="check" key={x.id}><input type="checkbox" checked={dp.theory.includes(x.id)} onChange={() => toggle('theory', x.id)} /><span>{state.lang === 'ar' ? x.ar : x.en}</span></label>)}</div><div><h2>PRACTICAL</h2>{topic.practical.map((x) => <label className="check" key={x.id}><input type="checkbox" checked={dp.practical.includes(x.id)} onChange={() => toggle('practical', x.id)} /><span>{state.lang === 'ar' ? x.ar : x.en}</span></label>)}</div></div><h2>COMMON MISTAKES</h2>{topic.mistakes.map((x) => <div className="info-line" key={x}>• {x}</div>)}<h2>TOOLS</h2><div className="tool-list">{topic.tools.map((x) => <span key={x}>{x}</span>)}</div></div>
-              <div className="panel assessment"><div className="panel-heading"><div><div className="eyebrow">ASSESSMENT</div><h2>10 QUESTIONS</h2></div><span className="mode-chip">{dp.assessmentSubmitted ? `${dp.score}/10` : 'ANSWERS HIDDEN'}</span></div>{topic.questions.map((q, i) => <div className="q" key={q.id}><b>{i + 1}. {state.lang === 'ar' ? q.arQuestion : q.question}</b>{(state.lang === 'ar' ? q.arOptions : q.options)?.map((o, j) => <label className="option" key={j}><input type="radio" name={q.id} checked={answers[q.id] === j} onChange={() => setAnswers((a) => ({ ...a, [q.id]: j }))} />{o}</label>)}</div>)}<button className="btn primary big" onClick={submit}>SUBMIT ASSESSMENT</button>{dp.assessmentSubmitted && <div className="result-banner"><strong>{dp.score}/10</strong><span>{state.lang === 'ar' ? 'تم تسجيل الاختبار. راجع الأخطاء.' : 'Assessment recorded. Review mistakes from Mistake Review.'}</span></div>}</div>
-            </section>
-          )}
-
-          {page === 'calendar' && (
-            <section>
-              <div className="hero"><div className="eyebrow">SCHEDULE · SEPT 17 → NOV 30</div><h1>{T.calendar}</h1><p>{state.lang === 'ar' ? 'خطة المهمة كاملة: منصة سطر، 25 موضوعًا، 12 يوم راحة، 4 أيام مراجعة، ما قبل المسابقة، ويوم المسابقة.' : 'Full mission schedule: Satr, 25 topics, 12 break days, 4 review days, pre-competition and competition day.'}</p></div>
-              <div className="panel calendar-panel">
-                <div className="calendar-legend">
-                  <span><i className="today-dot" /> Today</span><span><i className="completed-dot" /> Completed</span><span><i className="break-dot" /> Break</span><span><i className="review-dot" /> Review</span><span><i className="missed-dot" /> Missed</span>
-                </div>
-                <div className="calendar-grid">
-                  {schedule.map((d) => {
-                    const p = state.daily[d.date];
-                    const status = statusForDay(d, d.date, date, p);
-                    const t = topics.find((x) => x.id === d.topicId);
-                    return <button aria-label={`${d.date} ${labelForDay(d, state.lang)}`} className={`calendar-day ${status}`} key={d.date} onClick={() => setSelectedDay(d)}><div className="calendar-top"><b>{new Date(d.date + 'T12:00:00').getDate()}</b><span>{status.toUpperCase()}</span></div><strong>{d.kind === 'topic' ? (t?.title || 'Topic') : labelForDay(d, state.lang)}</strong>{d.topicDay && <small>DAY {d.topicDay}/2</small>}{p?.completed && <em>✓ COMPLETE</em>}</button>;
-                  })}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {page === 'mistakes' && (
-            <section><div className="hero"><div className="eyebrow">DEFENSIVE REVIEW</div><h1>{T.mistakes}</h1><p>{state.lang === 'ar' ? 'كل خطأ محفوظ للمراجعة ولا يخصم من وقت الدراسة.' : 'Every mistake is retained for review and never deducts study time.'}</p></div><div className="stat-grid lower-stats"><div className="metric-card"><span>MISTAKES</span><strong>{mistakes.length}</strong><small>Recorded wrong answers</small></div><div className="metric-card"><span>ACCURACY</span><strong>{accuracy}%</strong><small>Across submitted assessments</small></div><div className="metric-card"><span>QUESTIONS</span><strong>{submitted}</strong><small>Questions submitted</small></div><div className="metric-card"><span>WEAK TOPICS</span><strong>{weakNames.length}</strong><small>Topics with mistakes</small></div></div><div className="panel mistakes-panel">{mistakes.length === 0 ? <div className="empty-state"><span>✓</span><h2>No mistakes yet.</h2><p>Complete an assessment to start building your weakness profile.</p></div> : mistakes.map((m, i) => <div className="mistake" key={`${m}-${i}`}><div className="mistake-icon">!</div><div><strong>{m.split(':')[0]}</strong><p>{m}</p><small>Review this concept from the topic assessment.</small></div></div>)}</div></section>
-          )}
-
-          {page === 'settings' && (
-            <section><div className="hero"><div className="eyebrow">LOCAL CONFIGURATION</div><h1>Settings</h1><p>Customize the mission control experience without changing your study data.</p></div><div className="settings-stack">
-              <div className="panel settings-card"><div className="setting-title"><span>01</span><div><h2>APPEARANCE</h2><p>Choose the visual command-center style.</p></div></div><div className="setting-options">{[['soc','SOC'],['terminal','Terminal'],['futuristic','Futuristic Cyber'],['clean','Clean Dark'],['light','Light']].map(([value,label]) => <button key={value} className={state.theme === value ? 'choice active' : 'choice'} onClick={() => setStateSafe((s) => ({ ...s, theme: value as Theme }))}><i>{state.theme === value ? '●' : '○'}</i>{label}</button>)}</div></div>
-              <div className="panel settings-card"><div className="setting-title"><span>02</span><div><h2>COACH</h2><p>Control how aggressively the coach pushes you.</p></div></div><div className="settings-fields"><label>Coach intensity<select value={state.intensity} onChange={(e) => setStateSafe((s) => ({ ...s, intensity: e.target.value as Intensity }))}><option value="calm">Calm</option><option value="normal">Normal</option><option value="strict">Strict</option><option value="brutal">Brutal-but-fun</option></select></label><label>Coach language<select value={state.lang} onChange={(e) => setStateSafe((s) => ({ ...s, lang: e.target.value as 'en' | 'ar' }))}><option value="en">English</option><option value="ar">Arabic</option></select></label><label>Daily briefing<select value={state.briefing} onChange={(e) => setStateSafe((s) => ({ ...s, briefing: e.target.value as Briefing }))}><option value="full">Full</option><option value="compact">Compact</option><option value="minimal">Minimal</option></select></label></div></div>
-              <div className="panel settings-card"><div className="setting-title"><span>03</span><div><h2>MOTIVATION</h2><p>Fine-tune jokes and optional browser feedback.</p></div></div><div className="settings-fields"><label>Joke frequency<select value={state.jokeFrequency} onChange={(e) => setStateSafe((s) => ({ ...s, jokeFrequency: e.target.value as JokeFrequency }))}><option value="never">Never</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label><label>Sound<select value={String(state.sound)} onChange={(e) => setStateSafe((s) => ({ ...s, sound: e.target.value === 'true' }))}><option value="true">On</option><option value="false">Off</option></select></label><label>Browser notifications<select value={String(state.notifications)} onChange={(e) => setStateSafe((s) => ({ ...s, notifications: e.target.value === 'true' }))}><option value="false">Off</option><option value="true">On</option></select></label></div></div>
-              <div className="panel settings-card"><div className="setting-title"><span>04</span><div><h2>DATA & PROGRESS</h2><p>Backup, restore, or reset your local mission data.</p></div></div><div className="data-actions"><button className="btn" onClick={exportData}>↓ EXPORT PROGRESS</button><button className="btn" onClick={() => fileRef.current?.click()}>↑ IMPORT PROGRESS</button><input ref={fileRef} type="file" accept="application/json" onChange={importData} hidden /><button className="btn danger" onClick={reset}>RESET PROGRESS</button></div></div>
-            </div></section>
-          )}
-
-          <footer className="footer">CYBERSECURITY 7H COACH · LOCAL-FIRST · NO LOGIN · NO EXTERNAL AI REQUIRED</footer>
-        </main>
-      </div>
-
-      <div className="mobile-nav">{nav.map(([id, label]) => <button key={id} className={page === id ? 'active' : ''} onClick={() => setPage(id)}><span>{id === 'dashboard' ? '⌂' : id === 'calendar' ? '▦' : id === 'mistakes' ? '!' : '⚙'}</span>{label}</button>)}</div>
-
-      {selectedDay && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedDay(null); }}>
-          <div className="day-modal" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
-            <button className="modal-close" onClick={() => setSelectedDay(null)} aria-label="Close">×</button>
-            <div className="eyebrow">MISSION DAY</div>
-            <h2 id="day-modal-title">{selectedDay.date}</h2>
-            <div className="modal-status">{statusForDay(selectedDay, selectedDay.date, date, selectedProgress).toUpperCase()}</div>
-            <div className="modal-topic">{selectedTopic ? selectedTopic.title : labelForDay(selectedDay, state.lang)}{selectedDay.topicDay && <span>DAY {selectedDay.topicDay}/2</span>}</div>
-            <div className="modal-stats"><div><span>STUDIED</span><strong>{fmt(selectedProgress?.studyMs || 0)}</strong></div><div><span>TARGET</span><strong>{selectedDay.kind === 'competition' || selectedDay.kind === 'pre' ? '—' : '07:00:00'}</strong></div><div><span>ASSESSMENT</span><strong>{selectedProgress?.assessmentSubmitted ? `${selectedProgress.score || 0}/10` : '—'}</strong></div></div>
-            <p className="muted">{selectedTopic ? selectedTopic.why : selectedDay.kind === 'break' ? 'A 24-hour recovery period. It does not create study debt.' : selectedDay.kind === 'review' ? 'Final review period focused on weaknesses and mixed practice.' : selectedDay.kind === 'competition' ? 'Competition day. No normal study requirement.' : 'Schedule checkpoint for the mission.'}</p>
-            <button className="btn primary big" onClick={() => { setSelectedDay(null); if (selectedTopic) setPage('topic'); }}>OPEN DETAILS</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+export default function Home(){
+ const [state,setState]=useState<AppState>(initial),[loaded,setLoaded]=useState(false),[now,setNow]=useState(Date.now()),[page,setPage]=useState<'dashboard'|'calendar'|'settings'|'day'>('dashboard'),[chosen,setChosen]=useState<DailyEntry|null>(null),[step,setStep]=useState(0),[onboarded,setOnboarded]=useState(false),[mood,setMood]=useState('focused');const file=useRef<HTMLInputElement>(null);
+ useEffect(()=>{try{const old=JSON.parse(localStorage.getItem('cyber7h-state')||'null');if(old&&typeof old==='object'&&old.daily){
+ const migrated=migrateDaily(old as AppState);
+ setOnboarded(Boolean(old.name)&&localStorage.getItem('cyber-coach-onboarded')!=='false');setState({...initial,...old,version:4,name:old.name||'',hours:Math.min(16,Math.max(1,Number(old.hours)||7)),daily:migrated,timer:{...initial.timer,...old.timer,running:false,sessionStartedAt:null,accumulatedMs:(old.timer?.accumulatedMs||0)+(old.timer?.running&&old.timer?.sessionStartedAt?Math.max(0,Math.min(Date.now()-old.timer.sessionStartedAt,(Number(old.hours)||7)*H)):0)}})}}catch{}setLoaded(true)},[]);
+ useEffect(()=>{if(loaded){localStorage.setItem('cyber7h-state',JSON.stringify(state));document.documentElement.lang=state.lang;document.documentElement.dir=state.lang==='ar'?'rtl':'ltr'}},[state,loaded]);
+ useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id)},[]);
+ const l=state.lang,T=words[l],index=Math.min(52,Math.max(0,schedule.findIndex(x=>!state.daily[x.date]?.completed)===-1?52:schedule.findIndex(x=>!state.daily[x.date]?.completed))),todayEntry=schedule[index],entry=chosen||todayEntry,topic=topics.find(t=>t.id===entry.topicId)||{...topics[0],title:'Satr platform',arTitle:'منصة سطر',why:'Study the Satr platform track at your own pace.',arWhy:'تابع مسار منصة سطر بالوتيرة التي تناسبك.',theory:[],practical:[],resources:[]},todayProgress=state.daily[todayEntry.date]||{studyMs:0,theory:[],practical:[]};
+ const same=state.timer.date===todayEntry.date||(!state.timer.date&&Object.keys(state.daily).length===0),base=same?state.timer.accumulatedMs:0,elapsed=state.timer.running&&same&&state.timer.sessionStartedAt?Math.max(0,now-state.timer.sessionStartedAt):0,spent=Math.min(state.hours*H,Math.max(todayProgress.studyMs,base+elapsed)),remaining=Math.max(0,state.hours*H-spent),pct=Math.round(100*spent/(state.hours*H));
+ const save=(patch:Partial<AppState>)=>setState(s=>({...s,...patch}));
+ useEffect(()=>{if(!loaded)return;if(state.timer.running&&remaining===0){setState(s=>{if(!s.timer.running)return s;const old=s.daily[todayEntry.date]||{studyMs:0,theory:[],practical:[]};return {...s,daily:{...s.daily,[todayEntry.date]:{...old,studyMs:s.hours*H,completed:true}},timer:{running:false,sessionStartedAt:null,accumulatedMs:s.hours*H,lastSyncedAt:Date.now(),date:todayEntry.date}}})}},[remaining,loaded,state.timer.running,todayEntry.date]);
+ const pause=()=>setState(s=>({...s,timer:{...s.timer,running:false,sessionStartedAt:null,accumulatedMs:spent,lastSyncedAt:Date.now(),date:todayEntry.date},daily:{...s.daily,[todayEntry.date]:{...(s.daily[todayEntry.date]||{studyMs:0,theory:[],practical:[]}),studyMs:spent,completed:spent>=s.hours*H}}}));
+ const start=()=>{if(remaining<=0)return;setState(s=>({...s,timer:{running:true,sessionStartedAt:Date.now(),accumulatedMs:spent,lastSyncedAt:Date.now(),date:todayEntry.date}}))};
+ const toggle=(kind:'theory'|'practical',id:string)=>setState(s=>{const p=s.daily[entry.date]||{studyMs:0,theory:[],practical:[]};return {...s,daily:{...s.daily,[entry.date]:{...p,[kind]:p[kind].includes(id)?p[kind].filter(x=>x!==id):[...p[kind],id]}}}});
+ const check=state.daily[entry.date]||{studyMs:0,theory:[],practical:[]};
+ const exportData=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='cyber-coach-progress.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)};
+ const importData=(e:React.ChangeEvent<HTMLInputElement>)=>{const f=e.target.files?.[0];if(!f)return;f.text().then(raw=>{try{const x=JSON.parse(raw);if(!x||typeof x.daily!=='object'||!x.timer||typeof x.name!=='string')throw Error();setState({...initial,...x,version:4,daily:migrateDaily(x as AppState),timer:{...initial.timer,...x.timer,running:false,sessionStartedAt:null}})}catch{alert(l==='ar'?'ملف التقدم غير صالح':'Invalid progress file')}});e.target.value=''};
+ const jokeFor=(dayIndex:number)=>jokes[l][(Math.max(0,dayIndex)+Math.floor(Math.max(0,dayIndex)/10))%jokes[l].length];
+ const dailyJoke=jokeFor(index);
+ const nav=(['dashboard','calendar','settings'] as const);
+ if(!loaded)return <main className="main">Loading…</main>;
+ const select=(d:DailyEntry)=>{setChosen(d);setPage('day');window.scrollTo(0,0)};
+ return <div className={`app theme-${state.theme} ${l==='ar'?'rtl':''}`}><div className="shell"><aside className="sidebar"><div className="brand-mark"><span>53</span><div><b>CYBERSECURITY</b><small>STUDY COACH</small></div></div><nav className="nav">{nav.map((n,i)=><button key={n} className={page===n?'active':''} onClick={()=>{setChosen(null);setPage(n)}}><span className="nav-icon">{['⌂','▦','⚙'][i]}</span>{T[n]}</button>)}</nav><div className="side-mission"><strong>{Math.min(53,Math.max(1,index+1))}/53</strong><span>{T.progress}</span></div></aside><main className="main"><header className="topbar"><div><div className="breadcrumb">CYBERSECURITY · 53 DAYS</div><div className="date-line">{l==='ar'?'ابدأ في الوقت الذي تختاره':'Start on your own schedule'}</div></div><button className="lang-switch" onClick={()=>save({lang:l==='ar'?'en':'ar'})}>{l==='ar'?'English':'العربية'}</button></header>
+ {!onboarded?<div className="onboarding-backdrop"><section className="panel setup" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="eyebrow">{step===0?T.welcome:`${step}/3 · ${T.intro}`}</div><h1 id="onboarding-title">{step===0?(l==='ar'?'أهلًا! 👋':'Welcome! 👋'):step===1?T.name:step===2?T.language:T.hours}</h1>{step===0?<><p>{l==='ar'?'جهازك ما يحتاج تحديث… يحتاجك تبدأ قبل ما يصير المؤقت أثرًا تاريخيًا 😂':'Your computer does not need an update. It needs you to start before the timer becomes a historical artifact 😂'}</p><h2>{l==='ar'?'يلا نكمل؟':'Ready to continue?'}</h2></>:step===1?<label className="setup-field">{T.name}<input autoFocus value={state.name} onChange={e=>{localStorage.setItem('cyber-coach-onboarded','false');save({name:e.target.value})}} placeholder={l==='ar'?'اكتب اسمك':'Enter your name'}/></label>:step===2?<label className="setup-field">{T.language}<select value={l} onChange={e=>save({lang:e.target.value as Lang})}><option value="en">English</option><option value="ar">العربية</option></select></label>:<label className="setup-field">{T.hours}<input type="number" min="1" max="16" value={state.hours} onChange={e=>save({hours:Math.min(16,Math.max(1,Number(e.target.value)||1))})}/></label>}<div className="data-actions">{step>0&&<button className="btn" onClick={()=>setStep(step-1)}>{T.back}</button>}<button className="btn primary" onClick={()=>{if(step===1&&!state.name.trim())return;if(step<3)setStep(step+1);else {save({name:state.name.trim()});localStorage.setItem('cyber-coach-onboarded','true');setOnboarded(true)}}}>{step===0?(l==='ar'?'يلا نكمل':'Let’s go'):step===3?T.saveProfile:T.next}</button></div></section></div>:<>
+ {page==='dashboard'&&<><section className="hero"><div className="eyebrow">{T.hello} · {T.welcome} {state.name}</div><h1>{T.mission}</h1><p>{T.day} {index+1} / 53 · {entryLabel(todayEntry,l)} {todayEntry.topicDay===2?`· ${T.review}`:''}</p><div className="mood">{T.mood} {['focused','tired','energized'].map((m,i)=><button key={m} className={mood===m?'active':''} onClick={()=>setMood(m)}>{l==='ar'?['مركز','متعب','متحمس'][i]:['Focused','Tired','Energized'][i]}</button>)}</div></section><section className="panel joke-card"><div className="eyebrow">{l==='ar'?'ذبة اليوم · ابتسامة مجانية':'DAILY JOKE · FREE SMILE'}</div><h2>{dailyJoke}</h2><small>{T.day} {index+1} / 53</small></section><section className="stat-grid"><div className="metric-card"><span>{T.target}</span><strong>{state.hours}h</strong></div><div className="metric-card"><span>{T.studied}</span><strong>{str(spent)}</strong></div><div className="metric-card"><span>{T.remaining}</span><strong>{str(remaining)}</strong></div><div className="metric-card"><span>{T.progress}</span><strong>{schedule.filter(x=>state.daily[x.date]?.completed).length}/53</strong></div></section><section className="panel timer-card"><div className="eyebrow">{T.remaining}</div><div className="timer">{str(remaining)}</div><div className="progress large"><i style={{width:`${pct}%`}}/></div><p>{T.noTime}</p><div className="timer-actions">{state.timer.running?<button className="btn primary big" onClick={pause}>{T.pause}</button>:<button className="btn primary big" disabled={!remaining} onClick={start}>{T.start}</button>}<button className="btn big" onClick={pause}>{T.save}</button></div></section><section className="panel"><div className="panel-heading"><h2>{entryLabel(todayEntry,l)}</h2><button className="btn" onClick={()=>select(todayEntry)}>{T.open} →</button></div><p>{l==='ar'?topic.arWhy:topic.why}</p>{todayEntry.kind==='satr'&&<p className="satr-note"><a href="https://satr.codes/" target="_blank" rel="noopener noreferrer">satr.codes ↗</a></p>}{todayEntry.topicDay===2&&<p className="satr-note">{T.discord}</p>}</section></>}
+ {page==='calendar'&&<><section className="hero"><div className="eyebrow">{l==='ar'?'ابدأ في الوقت الذي تختاره':'START WHENEVER YOU WANT'}</div><h1>{T.calendar} · 53</h1><p>{l==='ar'?'كل الأيام مفتوحة: ٣ أيام مستقلة لمنصة سطر، ثم ٢٥ موضوعًا، يومان لكل موضوع. ابدأ وقت ما يناسبك.':'All days are open: 3 separate Satr days, then 25 topics with two days each. Start whenever you want.'}</p></section><div className="calendar-grid">{schedule.map((d,i)=>{const p=state.daily[d.date],status=p?.completed?'done':i===index?'today':'upcoming';return <button key={d.date} className={`calendar-day ${status}`} onClick={()=>select(d)}><div className="calendar-top"><b>{i+1}</b><span>{T[status]}</span></div><strong>{entryLabel(d,l)}</strong>{d.kind==='topic'&&<small>{T.day} {d.topicDay}/2</small>}{d.kind==='satr'&&<em>{T.satr} {i+1}/3</em>}{d.topicDay===2&&<em>{T.review}</em>}</button>})}</div></>}
+ {page==='day'&&<><button className="btn" onClick={()=>setPage('calendar')}>← {T.calendar}</button><section className="hero"><div className="eyebrow">{T.day} {schedule.indexOf(entry)+1}/53</div><h1>{entryLabel(entry,l)}</h1><p>{l==='ar'?topic.arWhy:topic.why}</p>{entry.topicDay===2&&<p className="satr-note">{T.discord}</p>}</section><section className="panel joke-card"><div className="eyebrow">{l==='ar'?'ذبة اليوم':'DAILY JOKE'}</div><h2>{jokeFor(schedule.indexOf(entry))}</h2></section><section className="stat-grid"><div className="metric-card"><span>{T.target}</span><strong>{state.hours}h</strong></div><div className="metric-card"><span>{T.studied}</span><strong>{str(entry.date===todayEntry.date?spent:check.studyMs)}</strong></div></section>{entry.kind==='satr'?<section className="panel"><h2>{l==='ar'?'رابط منصة سطر':'Satr platform link'}</h2><a className="resource-link" href="https://satr.codes/" target="_blank" rel="noopener noreferrer">satr.codes ↗</a></section>:<><div className="detail-grid"><section className="panel"><h2>{T.theory}</h2>{topic.theory.map(x=><label className="check" key={x.id}><input type="checkbox" checked={check.theory.includes(x.id)} onChange={()=>toggle('theory',x.id)}/><span>{l==='ar'?x.ar:x.en}</span></label>)}</section><section className="panel"><h2>{T.practical}</h2>{topic.practical.map(x=><label className="check" key={x.id}><input type="checkbox" checked={check.practical.includes(x.id)} onChange={()=>toggle('practical',x.id)}/><span>{l==='ar'?x.ar:x.en}</span></label>)}</section></div><div className="detail-grid"><section className="panel"><h2>{T.videos} · 5</h2><p className="muted">{T.linksNote}</p>{searches(topic).map(x=><a className="resource-link" href={x.url} target="_blank" rel="noopener noreferrer" key={x.url}>{x.title} ↗</a>)}</section><section className="panel"><h2>{T.resources} · 5</h2>{resources(topic).map(x=><a className="resource-link" href={x.url} target="_blank" rel="noopener noreferrer" key={x.url}>{x.title} ↗</a>)}</section></div></>}<button className="btn primary" onClick={()=>setState(s=>({...s,daily:{...s.daily,[entry.date]:{...check,studyMs:entry.date===todayEntry.date?spent:check.studyMs,completed:!check.completed}},timer:entry.date===todayEntry.date&&!check.completed?{...s.timer,running:false,sessionStartedAt:null,accumulatedMs:spent}:s.timer}))}>{check.completed?'✓ '+T.done:T.completed}</button></>}
+ {page==='settings'&&<><section className="hero"><h1>{T.settings}</h1><p>{T.preferences}</p></section><section className="panel settings-card"><h2>{T.edit}</h2><div className="settings-fields"><label>{T.name}<input value={state.name} onChange={e=>save({name:e.target.value})}/></label><label>{T.hours}<input type="number" min="1" max="16" value={state.hours} onChange={e=>save({hours:Math.min(16,Math.max(1,Number(e.target.value)||1))})}/></label><label>{T.language}<select value={l} onChange={e=>save({lang:e.target.value as Lang})}><option value="en">English</option><option value="ar">العربية</option></select></label><label>{T.style}<select value={state.studyStyle} onChange={e=>save({studyStyle:e.target.value})}>{(['balanced','visual','hands'] as const).map(x=><option key={x} value={x}>{T[x]}</option>)}</select></label></div></section><section className="panel"><h2>{T.mode}</h2><div className="setting-options">{(['redgreen','terminal','futuristic','clean','light'] as Theme[]).map(x=><button className={`choice ${state.theme===x?'active':''}`} key={x} onClick={()=>save({theme:x})}>{x==='redgreen'?(l==='ar'?'أحمر وأسود':'Red & black'):x.toUpperCase()}</button>)}</div></section><section className="panel"><div className="data-actions"><button className="btn" onClick={exportData}>{T.export}</button><button className="btn" onClick={()=>file.current?.click()}>{T.import}</button><input ref={file} type="file" accept="application/json" hidden onChange={importData}/><button className="btn danger" onClick={()=>{if(confirm(l==='ar'?'تأكيد مسح كل التقدم؟':'Erase all progress?')){setState(initial);localStorage.setItem('cyber-coach-onboarded','false');setOnboarded(false);setStep(0)}}}>{T.reset}</button></div></section></>}
+ </>}
+ </main></div>{state.name&&<nav className="mobile-nav">{nav.map((n,i)=><button key={n} className={page===n?'active':''} onClick={()=>{setChosen(null);setPage(n)}}><span>{['⌂','▦','⚙'][i]}</span>{T[n]}</button>)}</nav>}</div>
 }
